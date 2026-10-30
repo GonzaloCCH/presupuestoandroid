@@ -1,4 +1,4 @@
-var C="presupuesto2-v14";
+var C="presupuesto2-v15";
 var F=["./","index.html","manifest.json","icon-180.png","icon-512.png","icon-192.png","icon-maskable-512.png"];
 
 self.addEventListener("install",function(e){
