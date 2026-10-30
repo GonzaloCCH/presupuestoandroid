@@ -227,9 +227,38 @@ function tg(k){V.o[k]=!V.o[k];draw()}
 function pin(k){S.pin[k]=!S.pin[k];if(!S.pin[k])V.o[k]=true;save();draw()}
 function isO(k){return !!(V.o[k]||S.pin[k])}
 function ted(k){V.ed=V.ed===k?"":k;draw()}
-function go(t){V.tab=t;draw();window.scrollTo(0,0)}
-function openSh(t){V.sheet=t;V.previewG="";V.salG="";V.sob=false;draw();window.scrollTo(0,0)}
-function closeSh(){V.sheet="";draw()}
+function navState(){return {p2nav:1,tab:V.tab,sheet:V.sheet||"",base:0}}
+function navPush(){try{history.pushState(navState(),"",location.href)}catch(e){}}
+function go(t){if(V.tab!==t||V.sheet){V.tab=t;V.sheet="";navPush()}else{V.tab=t}draw();window.scrollTo(0,0)}
+function openSh(t){V.sheet=t;V.previewG="";V.salG="";V.sob=false;navPush();draw();window.scrollTo(0,0)}
+function closeSh(){if(V.sheet){try{history.back();return}catch(e){}}V.sheet="";draw()}
+/* Historial compatible con Chrome instalado como PWA en Android.
+   Las pantallas se apilan; Atrás restaura la pantalla anterior.
+   Solo se repone el estado base cuando ya se llegó a Inicio. */
+(function(){
+  function baseState(){return {p2nav:1,tab:"ini",sheet:"",base:1};}
+  try{history.replaceState(baseState(),"",location.href);history.pushState(baseState(),"",location.href);}catch(e){}
+  window.addEventListener("popstate",function(e){
+    var s=e.state;
+    if(s&&s.p2nav){
+      V.tab=s.tab||"ini";
+      V.sheet=s.sheet||"";
+      draw();
+      window.scrollTo(0,0);
+      if(s.base){
+        /* Mantiene Inicio como punto seguro para el siguiente Atrás. */
+        try{history.pushState(baseState(),"",location.href);}catch(x){}
+      }
+    }else{
+      /* Si Chrome entrega un estado externo, vuelve a la pantalla principal. */
+      V.sheet="";
+      V.tab="ini";
+      draw();
+      window.scrollTo(0,0);
+      try{history.pushState(baseState(),"",location.href);}catch(x){}
+    }
+  },false);
+})();
 function lst(L){return L.indexOf("cfg.")===0?S.cfg[L.slice(4)]:S[L]}
 /* cálculos */
 function P(g,k){return sum(S.plan.filter(function(x){return x.g===g&&x.k===k}))+sum(S.sob.filter(function(x){return x.g===g&&x.k===k}))}
@@ -602,7 +631,7 @@ function aju(){
   S.ui=S.ui||{};
   return '<div class="card"><h2>📱 Zoom de pantalla</h2><div class="tag" style="margin-bottom:8px">Evita que la pantalla se amplíe accidentalmente con los dedos.</div><label style="display:flex;align-items:center;gap:10px;padding:8px 0"><input type="checkbox" style="width:22px;height:22px" ' +(S.ui.disableZoom?'checked ':'')+ 'onchange="toggleZoom(this.checked)"><span>Bloquear zoom de la aplicación</span></label><div class="tag">Puedes desactivarlo aquí cuando necesites ampliar el contenido.</div></div>'+themeCard()+'<div class="tag" style="margin-bottom:10px">Lo que agregues, cambies o elimines aquí aparece solo en todas las pantallas.</div>'
    +'<div class="card"><h2>Efectos visuales</h2><label style="display:flex;align-items:center;gap:10px;padding:4px 0"><input type="checkbox" style="width:22px;height:22px" '+(S.ui.disableFade?'checked ':'')+'onchange="toggleFade(this.checked)"><span>Quitar el fondo oscurecido al abrir formularios y las animaciones</span></label></div>'+quickCard()+cl("cats","Categorías")+cl("tipos","Tipos de gasto")+cl("cuentas","Cuentas, métodos de pago y entidades")+asCard()+gr()+cl("gastos","Gastos (nombre, categoría y tipo)")+cl("ubic","Ubicaciones de deudas")+appIconSettings()+tileSettings()+icCard()
-   +'<div class="card"><h2>Respaldo y exportar</h2><div class="tag" style="margin-bottom:8px">Copia tus datos para guardarlos en Notas. Para Excel, pega los gastos en una hoja.</div><button style="width:100%;margin-bottom:8px" onclick="copyText(JSON.stringify(S),\'Respaldo copiado\')">Copiar respaldo completo</button><button style="width:100%;margin-bottom:12px" onclick="copyTsv()">Copiar gastos para Excel</button><textarea id="rs" placeholder="Pega aquí un respaldo para restaurarlo"></textarea><button class="ghost" style="width:100%;border:1px solid var(--line)" onclick="restaurar()">Restaurar respaldo (reemplaza todo)</button></div><div class="tag" style="text-align:center;margin-top:6px">Versión 14</div>'}
+   +'<div class="card"><h2>Respaldo y exportar</h2><div class="tag" style="margin-bottom:8px">Copia tus datos para guardarlos en Notas. Para Excel, pega los gastos en una hoja.</div><button style="width:100%;margin-bottom:8px" onclick="copyText(JSON.stringify(S),\'Respaldo copiado\')">Copiar respaldo completo</button><button style="width:100%;margin-bottom:12px" onclick="copyTsv()">Copiar gastos para Excel</button><textarea id="rs" placeholder="Pega aquí un respaldo para restaurarlo"></textarea><button class="ghost" style="width:100%;border:1px solid var(--line)" onclick="restaurar()">Restaurar respaldo (reemplaza todo)</button></div><div class="tag" style="text-align:center;margin-top:6px">Versión 17</div>'}
 function toggleFade(enabled){S.ui=S.ui||{};S.ui.disableFade=!!enabled;save();applyFadeSetting();draw()}
 function applyFadeSetting(){document.body.classList.toggle("no-fade",!!(S&&S.ui&&S.ui.disableFade))}
 function toggleZoom(enabled){
@@ -656,30 +685,7 @@ function draw(){
   var th=document.getElementById("themePick");if(th){try{th.value=localStorage.getItem("presupuesto2-theme")||"system"}catch(e){th.value="system"}}
   tp.className="st-"+S.ui.st;tp.innerHTML="";applyAppIcon();
 }
-/* Navegación atrás mediante gesto lateral (Android) */
-var backTouch=null;
-document.addEventListener("touchstart",function(e){
-  if(!e.touches||e.touches.length!==1)return;
-  var t=e.target;
-  if(t.closest&&t.closest("input,select,textarea,[contenteditable='true']"))return;
-  var x=e.touches[0].clientX,y=e.touches[0].clientY,w=window.innerWidth||360;
-  /* El gesto comienza en cualquiera de los bordes de la pantalla. */
-  if(x<=36)backTouch={x:x,y:y,edge:"left"};
-  else if(x>=w-36)backTouch={x:x,y:y,edge:"right"};
-  else backTouch=null;
-},{passive:true});
-document.addEventListener("touchend",function(e){
-  if(!backTouch||!e.changedTouches||!e.changedTouches.length){backTouch=null;return;}
-  var dx=e.changedTouches[0].clientX-backTouch.x;
-  var dy=e.changedTouches[0].clientY-backTouch.y;
-  var edge=backTouch.edge;backTouch=null;
-  if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.4)return;
-  /* Deslizar hacia dentro desde cualquiera de los dos laterales. */
-  if((edge==="left"&&dx>0)||(edge==="right"&&dx<0)){
-    if(V.sheet){closeSh();return;}
-    if(V.tab!=="ini"){go("ini");return;}
-  }
-},{passive:true});
+/* Atrás Android gestionado mediante history/popstate. */
 
 draw();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
